@@ -36,9 +36,13 @@ def cmdline_of(pid: str) -> str:
 
 
 def current_ssid() -> str:
+    """The broadcast SSID of the connected AP, not the NetworkManager
+    connection profile name -- NM can autoconnect via a differently-named
+    duplicate profile (e.g. "Home" vs "Home 1") for the same physical
+    network, which would otherwise cause a false SSID mismatch."""
     try:
         completed = subprocess.run(
-            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"],
+            ["nmcli", "-t", "-f", "ACTIVE,SSID", "dev", "wifi"],
             check=False,
             capture_output=True,
             text=True,
@@ -47,9 +51,9 @@ def current_ssid() -> str:
     except (OSError, subprocess.TimeoutExpired):
         return ""
     for line in completed.stdout.splitlines():
-        name, sep, kind = line.partition(":")
-        if sep and kind.split(":", 1)[0] == "802-11-wireless":
-            return name
+        active, sep, ssid = line.partition(":")
+        if sep and active == "yes":
+            return ssid
     return ""
 
 
