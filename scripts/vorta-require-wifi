@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Exit 0 only when the active Wi-Fi connection name matches the required SSID.
-# Point Vorta's pre-backup command at this, e.g.:
+# Exit 0 when either the active Wi-Fi connection name matches the required
+# SSID (i.e. we're actually home), or an optional second-hop check succeeds
+# (e.g. the backup host answers over Tailscale/VPN, so we're away but can
+# still reach it remotely). Point Vorta's pre-backup command at this, e.g.:
 #   ~/.local/bin/vorta-require-wifi HOME_SSID
+#   ~/.local/bin/vorta-require-wifi HOME_SSID my-nas.tailnet-name.ts.net
 set -euo pipefail
 
 required="${1:-}"
+remote_host="${2:-}"
 if [[ -z $required ]]; then
   echo "vorta-require-wifi: missing required SSID" >&2
   exit 1
@@ -20,5 +24,10 @@ if [[ $ssid == "$required" ]]; then
   exit 0
 fi
 
-echo "Backup skipped: not on home Wi-Fi ${required} (current: ${ssid:-none})" >&2
+if [[ -n $remote_host ]] && command -v tailscale >/dev/null 2>&1 \
+  && tailscale ping --timeout=5s -c 1 "$remote_host" >/dev/null 2>&1; then
+  exit 0
+fi
+
+echo "Backup skipped: not on home Wi-Fi ${required} (current: ${ssid:-none})${remote_host:+ and ${remote_host} not reachable via Tailscale}" >&2
 exit 1

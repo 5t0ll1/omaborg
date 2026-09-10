@@ -44,6 +44,15 @@ omarchy bar set oma.borg homeSsid YOUR_SSID
 Off that network, scheduled and manual backups are skipped. The bar stays
 quiet (not red) until you are home again.
 
+If your backup target is also reachable remotely (e.g. over Tailscale) and
+your SSH config points at that remote address when away, pass its hostname
+as a second argument so backups still run off the home network as long as
+that host answers:
+
+```bash
+~/.local/bin/vorta-require-wifi YOUR_SSID your-host.tailnet-name.ts.net
+```
+
 ## Bar colors
 
 | Appearance | Meaning |
