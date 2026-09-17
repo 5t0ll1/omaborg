@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Exit 0 when a backup may run, i.e. when the repository host is reachable
+# AND is really the expected machine. Point Vorta's pre-backup command at it:
+#
+#   vorta-require-repo HOST [PORT]
+#   vorta-require-repo my-nas.example.lan 6666
+#
+# Identity is established by comparing the host's live SSH host key against
+# the entry already in ~/.ssh/known_hosts. Nothing is hardcoded and nothing
+# needs to be kept in sync: the key you trusted when you set the repo up is
+# the key that is checked.
+#
+# Two earlier approaches were replaced:
+#   - `tailscale ping` tied the check to one specific VPN, so it failed as
+#     soon as that VPN was shut down and blocked every backup.
+#   - A Wi-Fi SSID comparison cannot distinguish two locations that broadcast
+#     the same network name, and says nothing about whether the repo is
+#     actually reachable.
+set -uo pipefail
+
+host="${1:-}"
+port="${2:-22}"
+known_hosts="${KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
+
+if [[ -z $host ]]; then
+    echo "vorta-require-repo: missing repository host" >&2
+    exit 1
+fi
+
+# known_hosts keys non-standard ports as [host]:port.
+if [[ $port == "22" ]]; then
+    target="$host"
+else
+    target="[${host}]:${port}"
+fi
+
+# "type base64" pairs, so a host with several key types still matches.
+keys_of() { grep -v '^#' | awk 'NF >= 3 { print $(NF-1), $NF }' | sort -u; }
+
+expected=$(ssh-keygen -F "$target" -f "$known_hosts" 2>/dev/null | keys_of)
+if [[ -z $expected ]]; then
+    echo "Backup skipped: no known_hosts entry for ${target} - connect once by hand first" >&2
+    exit 1
+fi
+
+live=$(timeout 10 ssh-keyscan -T 5 -p "$port" "$host" 2>/dev/null | keys_of)
+if [[ -z $live ]]; then
+    echo "Backup skipped: ${host}:${port} not reachable" >&2
+    exit 1
+fi
+
+if comm -12 <(printf '%s\n' "$expected") <(printf '%s\n' "$live") | grep -q .; then
+    exit 0
+fi
+
+echo "Backup skipped: host key of ${host}:${port} does not match known_hosts - refusing to back up to an unknown machine" >&2
+exit 1

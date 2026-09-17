@@ -32,32 +32,34 @@ If you have more than one Vorta profile, set **Vorta profile name** in the
 widget settings (or in `~/.config/omarchy/shell.json` on the bar entry).
 Leave it empty to use the first profile.
 
-To run backups only on home Wi-Fi, set **Only backup on this Wi-Fi** to that
-SSID and point Vorta's pre-backup command at `scripts/vorta-require-wifi`:
+The widget's **Only backup on this Wi-Fi** setting greys the bar icon out
+when you are away, so a missing backup does not look like a failure:
 
 ```bash
 omarchy bar set oma.borg homeSsid YOUR_SSID
-# In Vorta → profile → pre-backup command:
-~/.local/bin/vorta-require-wifi YOUR_SSID
-# Optional: also allow backups when the repo host is reachable (e.g. over VPN)
-~/.local/bin/vorta-require-wifi YOUR_SSID my-nas.example.lan 6666
 ```
 
-With the optional host argument, backups also run when that host answers on
-the given port — covering a differently-named AP at home and being away with
-a VPN tunnel up. The probe is a plain TCP connect and works with any VPN.
-
-Off that network, scheduled and manual backups are skipped. The bar stays
-quiet (not red) until you are home again.
-
-If your backup target is also reachable remotely (e.g. over Tailscale) and
-your SSH config points at that remote address when away, pass its hostname
-as a second argument so backups still run off the home network as long as
-that host answers:
+To stop Vorta from even starting a backup it cannot finish, point the
+pre-backup command at `scripts/vorta-require-repo`:
 
 ```bash
-~/.local/bin/vorta-require-wifi YOUR_SSID your-host.tailnet-name.ts.net
+# In Vorta -> profile -> pre-backup command:
+~/.local/bin/vorta-require-repo my-nas.example.lan 6666
 ```
+
+It allows the backup only when the repository host is reachable *and* presents
+the SSH host key already recorded in your `~/.ssh/known_hosts`. Nothing is
+hardcoded: the key you trusted when setting the repo up is the key that is
+checked, so it covers being at home, being away with a VPN tunnel up, and
+refuses a machine that merely answers on the same address.
+
+This replaced `vorta-require-wifi`, which compared the Wi-Fi SSID. An SSID
+cannot distinguish two places that broadcast the same network name, and says
+nothing about whether the repository is actually reachable.
+
+When the host is unreachable, scheduled and manual backups are skipped with a
+message instead of failing halfway through. The bar stays quiet (not red)
+while `homeSsid` says you are away.
 
 ## Bar colors
 
