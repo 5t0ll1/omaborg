@@ -47,15 +47,16 @@ pre-backup command at `scripts/vorta-require-repo`:
 ~/.local/bin/vorta-require-repo my-nas.example.lan 6666
 ```
 
-It allows the backup only when the repository host is reachable *and* presents
-the SSH host key already recorded in your `~/.ssh/known_hosts`. Nothing is
-hardcoded: the key you trusted when setting the repo up is the key that is
-checked, so it covers being at home, being away with a VPN tunnel up, and
-refuses a machine that merely answers on the same address.
+It allows the backup only when the repository host answers on the given port,
+so Vorta does not start something it cannot finish. A plain TCP connect is
+enough: if the machine answering is not the expected one, SSH rejects it
+seconds later on its own host key check.
 
-This replaced `vorta-require-wifi`, which compared the Wi-Fi SSID. An SSID
-cannot distinguish two places that broadcast the same network name, and says
-nothing about whether the repository is actually reachable.
+The question it asks is reachability, not location - so it covers being at
+home, being away with any VPN up, and being away without one. It replaced a
+Wi-Fi SSID comparison, which cannot tell apart two places that broadcast the
+same network name and says nothing about whether the repository can be
+reached.
 
 When the host is unreachable, scheduled and manual backups are skipped with a
 message instead of failing halfway through. The bar stays quiet (not red)
