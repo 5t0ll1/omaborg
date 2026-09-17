@@ -15,7 +15,9 @@ BarWidget {
     ? panelLoader.item.popoutSwitchClosing === true
     : false
 
-  property var settings: ({})
+  // No `property var settings` here: BarWidget already declares it and the bar
+  // host injects the shell.json entry into that declaration. Redeclaring
+  // shadows it, and every setting silently falls back to its default.
 
   function open() {
     if (panelLoader.item) panelLoader.item.open()
