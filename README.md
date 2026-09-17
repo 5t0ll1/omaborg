@@ -39,7 +39,13 @@ SSID and point Vorta's pre-backup command at `scripts/vorta-require-wifi`:
 omarchy bar set oma.borg homeSsid YOUR_SSID
 # In Vorta → profile → pre-backup command:
 ~/.local/bin/vorta-require-wifi YOUR_SSID
+# Optional: also allow backups when the repo host is reachable (e.g. over VPN)
+~/.local/bin/vorta-require-wifi YOUR_SSID my-nas.example.lan 6666
 ```
+
+With the optional host argument, backups also run when that host answers on
+the given port — covering a differently-named AP at home and being away with
+a VPN tunnel up. The probe is a plain TCP connect and works with any VPN.
 
 Off that network, scheduled and manual backups are skipped. The bar stays
 quiet (not red) until you are home again.

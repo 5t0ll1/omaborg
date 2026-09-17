@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "oma.borg",
   "name": "Borg",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "author": "5t0ll1",
   "license": "MIT",
   "description": "Vorta/Borg backup status and one-click backup for the Omarchy bar.",

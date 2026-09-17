@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Exit 0 when either the active Wi-Fi connection name matches the required
-# SSID (i.e. we're actually home), or an optional second-hop check succeeds
-# (e.g. the backup host answers over Tailscale/VPN, so we're away but can
-# still reach it remotely). Point Vorta's pre-backup command at this, e.g.:
+# Exit 0 when a backup may run: either the active Wi-Fi is the home SSID, or
+# an optional reachability probe against the repository host succeeds. The
+# second case covers being at home on a differently-named AP, and being away
+# with a VPN tunnel up. Point Vorta's pre-backup command at this, e.g.:
 #   ~/.local/bin/vorta-require-wifi HOME_SSID
-#   ~/.local/bin/vorta-require-wifi HOME_SSID my-nas.tailnet-name.ts.net
+#   ~/.local/bin/vorta-require-wifi HOME_SSID my-nas.example.lan 6666
+#
+# The probe is a plain TCP connect, so it works with any VPN. An earlier
+# version shelled out to `tailscale ping`, which tied the hook to one specific
+# VPN and blocked every backup once that VPN was shut down.
 set -euo pipefail
 
 required="${1:-}"
 remote_host="${2:-}"
+remote_port="${3:-6666}"
+
 if [[ -z $required ]]; then
   echo "vorta-require-wifi: missing required SSID" >&2
   exit 1
@@ -28,10 +34,10 @@ if [[ $ssid == "$required" ]]; then
   exit 0
 fi
 
-if [[ -n $remote_host ]] && command -v tailscale >/dev/null 2>&1 \
-  && tailscale ping --timeout=5s -c 1 "$remote_host" >/dev/null 2>&1; then
+if [[ -n $remote_host ]] \
+  && timeout 5 bash -c "exec 3<>/dev/tcp/${remote_host}/${remote_port}" 2>/dev/null; then
   exit 0
 fi
 
-echo "Backup skipped: not on home Wi-Fi ${required} (current: ${ssid:-none})${remote_host:+ and ${remote_host} not reachable via Tailscale}" >&2
+echo "Backup skipped: not on home Wi-Fi ${required} (current: ${ssid:-none})${remote_host:+ and ${remote_host}:${remote_port} not reachable}" >&2
 exit 1
