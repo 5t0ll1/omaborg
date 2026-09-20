@@ -234,8 +234,12 @@ Panel {
             InfoPair { label: "Vorta"; value: borg.vortaRunning ? "running" : (borg.vortaInstalled ? "not running" : "not installed") }
             InfoPair {
               visible: borg.homeSsid !== ""
-              label: "Wi-Fi"
-              value: borg.onHomeWifi ? borg.homeSsid : ((borg.currentSsid !== "" ? borg.currentSsid : "none") + " · home is " + borg.homeSsid)
+              label: "Network"
+              // No SSID means a cable, which is where the repository lives, so say
+              // that rather than claiming the home Wi-Fi is what carries this.
+              value: borg.currentSsid === "" ? "cable"
+                   : borg.onHomeWifi ? borg.homeSsid
+                   : (borg.currentSsid + " · home is " + borg.homeSsid)
             }
           }
 
