@@ -41,7 +41,9 @@ Item {
   readonly property string helperPath: pluginFile("status.py")
   readonly property bool busy: statusProcess.running || backupProcess.running
   readonly property string backupProfile: configuredProfile !== "" ? configuredProfile : profileName
-  readonly property bool onHomeWifi: homeSsid === "" || currentSsid === homeSsid
+  // An empty SSID is no Wi-Fi at all (cable, or radio off) and must not block a
+  // backup -- it gates the "Backup now" button. See deriveState() in Model.js.
+  readonly property bool onHomeWifi: homeSsid === "" || currentSsid === "" || currentSsid === homeSsid
   readonly property string state: Model.deriveState({
     backupRunning: backupRunning,
     lastReturncode: lastReturncode,

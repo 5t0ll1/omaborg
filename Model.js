@@ -132,7 +132,10 @@ function deriveState(status, nowSec, staleAfterHours, failedAfterHours) {
       && status.lastReturncode > 1) return "failed"
   var home = String((status && status.homeSsid) || "")
   var current = String((status && status.currentSsid) || "")
-  if (home !== "" && current !== home) return "away"
+  // An empty SSID means there is no Wi-Fi connection at all -- a cable, or the
+  // radio switched off. That is not evidence of being away from the backup
+  // server, so only a *different* Wi-Fi counts as away.
+  if (home !== "" && current !== "" && current !== home) return "away"
   var ts = status && status.lastBackupTs ? Number(status.lastBackupTs) : 0
   if (!ts) return status && status.vortaInstalled ? "never" : "missing"
   var ageHours = Math.max(0, (nowSec - ts) / 3600)
