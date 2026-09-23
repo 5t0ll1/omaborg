@@ -16,6 +16,7 @@ Item {
   property bool backupRunning: false
   property string profileName: ""
   property string currentSsid: ""
+  property var repoReachable: null   // null = local repo, nothing to probe
   property string repoHost: ""
   property string scheduleMode: "off"
   property string scheduleLabel: "manual"
@@ -37,20 +38,18 @@ Item {
   readonly property int staleAfterHours: intSetting("staleAfterHours", 24, 1, 168)
   readonly property int failedAfterHours: intSetting("failedAfterHours", 48, 1, 336)
   readonly property string configuredProfile: String(setting("profileName", "") || "")
-  readonly property string homeSsid: String(setting("homeSsid", "") || "")
   readonly property string helperPath: pluginFile("status.py")
   readonly property bool busy: statusProcess.running || backupProcess.running
   readonly property string backupProfile: configuredProfile !== "" ? configuredProfile : profileName
   // An empty SSID is no Wi-Fi at all (cable, or radio off) and must not block a
   // backup -- it gates the "Backup now" button. See deriveState() in Model.js.
-  readonly property bool onHomeWifi: homeSsid === "" || currentSsid === "" || currentSsid === homeSsid
+  readonly property bool repoAnswers: repoReachable !== false
   readonly property string state: Model.deriveState({
     backupRunning: backupRunning,
     lastReturncode: lastReturncode,
     lastBackupTs: lastBackupTs,
     vortaInstalled: vortaInstalled,
-    homeSsid: homeSsid,
-    currentSsid: currentSsid
+    repoReachable: repoReachable,
   }, nowSec, staleAfterHours, failedAfterHours)
   readonly property string stateText: Model.stateLabel(state, liveStatusText)
   readonly property string liveAgeLabel: lastBackupTs > 0 ? Model.ageLabel(nowSec - lastBackupTs) : "never"
@@ -61,14 +60,12 @@ Item {
     liveAgeLabel: liveAgeLabel,
     vortaRunning: vortaRunning,
     lastReturncode: lastReturncode,
-    homeSsid: homeSsid,
-    currentSsid: currentSsid
+    repoReachable: repoReachable,
   })
   readonly property string nextText: Model.nextLabel({
     scheduleMode: scheduleMode,
     scheduleLabel: scheduleLabel,
-    homeSsid: homeSsid,
-    currentSsid: currentSsid,
+    repoReachable: repoReachable,
     intervalSec: intervalSec,
     lastBackupTs: lastBackupTs,
     makeUpMissed: makeUpMissed
@@ -122,6 +119,7 @@ Item {
     backupRunning = parsed.backupRunning === true
     profileName = String(parsed.profileName || configuredProfile)
     currentSsid = String(parsed.currentSsid || "")
+    repoReachable = parsed.repoReachable === undefined ? null : parsed.repoReachable
     repoHost = String(parsed.repoHost || "")
     scheduleMode = String(parsed.scheduleMode || "off")
     scheduleLabel = String(parsed.scheduleLabel || "manual")
@@ -146,8 +144,8 @@ Item {
   function startBackup() {
     if (backupProcess.running) return
     lastError = ""
-    if (!onHomeWifi) {
-      lastError = homeSsid !== "" ? ("Backups only run on " + homeSsid) : "Not on home Wi-Fi"
+    if (!repoAnswers) {
+      lastError = "Backup server is not answering"
       actionStatus = lastError
       return
     }

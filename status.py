@@ -9,12 +9,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import sqlite3
 import stat
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 VORTA_DB = Path.home() / ".local/share/Vorta/settings.db"
 VORTA_LOG = Path.home() / ".local/state/Vorta/log/vorta.log"
@@ -186,6 +188,25 @@ def failure_hint(returncode: int | None) -> str:
     return f"Borg exited with code {returncode}."
 
 
+def repo_reachable(url: str) -> bool | None:
+    """Can the repository host be reached right now?
+
+    None for local repositories - there is nothing to probe, so the widget
+    should not claim anything. Asking about reachability rather than which
+    Wi-Fi we are on covers VPN tunnels and wired networks alike.
+    """
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if parsed.scheme != "ssh" or not parsed.hostname:
+        return None
+    try:
+        with socket.create_connection((parsed.hostname, parsed.port or 22), timeout=3):
+            return True
+    except OSError:
+        return False
+
+
 def open_db() -> sqlite3.Connection | None:
     if not VORTA_DB.exists():
         return None
@@ -213,6 +234,7 @@ def load_status(profile_name: str) -> dict:
         "profileName": profile_name,
         "currentSsid": current_ssid(),
         "repoHost": "",
+        "repoReachable": None,
         "scheduleMode": "off",
         "scheduleLabel": "manual",
         "scheduleCount": 0,
@@ -270,6 +292,7 @@ def load_status(profile_name: str) -> dict:
                 payload["scheduleMode"], payload["scheduleCount"], payload["scheduleUnit"]
             )
             payload["intervalSec"] = interval_seconds(payload["scheduleCount"], payload["scheduleUnit"])
+            payload["repoReachable"] = repo_reachable(profile["url"] or "")
             payload["repoHost"] = repo_display_name(
                 profile["url"] or "",
                 profile["repo_name"] or "",

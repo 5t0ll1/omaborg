@@ -32,12 +32,10 @@ If you have more than one Vorta profile, set **Vorta profile name** in the
 widget settings (or in `~/.config/omarchy/shell.json` on the bar entry).
 Leave it empty to use the first profile.
 
-The widget's **Only backup on this Wi-Fi** setting greys the bar icon out
-when you are away, so a missing backup does not look like a failure:
-
-```bash
-omarchy bar set oma.borg homeSsid YOUR_SSID
-```
+The widget greys the **Backup now** button out and dims the bar icon while the
+repository host is not answering, so a missing backup does not look like a
+failure. Nothing to configure: it probes the host from the repository URL that
+Vorta already stores.
 
 To stop Vorta from even starting a backup it cannot finish, point the
 pre-backup command at `scripts/vorta-require-repo`:
@@ -47,16 +45,11 @@ pre-backup command at `scripts/vorta-require-repo`:
 ~/.local/bin/vorta-require-repo my-nas.example.lan 6666
 ```
 
-It allows the backup only when the repository host answers on the given port,
-so Vorta does not start something it cannot finish. A plain TCP connect is
-enough: if the machine answering is not the expected one, SSH rejects it
-seconds later on its own host key check.
-
-The question it asks is reachability, not location - so it covers being at
-home, being away with any VPN up, and being away without one. It replaced a
-Wi-Fi SSID comparison, which cannot tell apart two places that broadcast the
-same network name and says nothing about whether the repository can be
-reached.
+Both ask the same question - can the repository be reached - so a backup over a
+VPN tunnel works exactly like one on the home LAN. An earlier version compared
+the Wi-Fi SSID instead, which asked about location: it blocked backups over a
+tunnel, and it could not tell apart two places that broadcast the same network
+name.
 
 When the host is unreachable, scheduled and manual backups are skipped with a
 message instead of failing halfway through. The bar stays quiet (not red)

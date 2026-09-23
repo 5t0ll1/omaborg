@@ -23,6 +23,7 @@ function defaultStatus() {
     backupRunning: false,
     profileName: "",
     currentSsid: "",
+    repoReachable: null,
     repoHost: "",
     scheduleMode: "off",
     scheduleLabel: "manual",
@@ -64,16 +65,15 @@ function actionPlan(state, extra) {
       primary: "backup"
     }
   }
-  if (state === "away") {
-    var home = String(extra.homeSsid || "home Wi-Fi")
-    var current = String(extra.currentSsid || "none")
+  if (state === "unreachable") {
+    var host = String(extra.repoHost || "the backup server")
     return {
-      title: "Not on home Wi-Fi",
-      body: "Backups only run on " + home + ". Current network: " + current + ".",
+      title: "Backup server unreachable",
+      body: host + " is not answering, so a backup cannot run right now.",
       steps: [
-        "This is expected when traveling",
-        "Connect to " + home + " at home",
-        "A backup will run automatically, or click Backup now once you are home"
+        "This is expected when away without a VPN tunnel",
+        "Connect to the network the repository lives on, or bring the tunnel up",
+        "A backup will run automatically once it answers"
       ],
       primary: ""
     }
@@ -130,12 +130,12 @@ function deriveState(status, nowSec, staleAfterHours, failedAfterHours) {
   if (status && status.backupRunning) return "running"
   if (status && status.lastReturncode !== null && status.lastReturncode !== undefined
       && status.lastReturncode > 1) return "failed"
-  var home = String((status && status.homeSsid) || "")
-  var current = String((status && status.currentSsid) || "")
-  // An empty SSID means there is no Wi-Fi connection at all -- a cable, or the
-  // radio switched off. That is not evidence of being away from the backup
-  // server, so only a *different* Wi-Fi counts as away.
-  if (home !== "" && current !== "" && current !== home) return "away"
+  // A remote repository that does not answer is the one condition that makes a
+  // backup impossible, whatever network we are on. This replaced a Wi-Fi SSID
+  // comparison, which asked about location instead: it blocked backups over a
+  // VPN tunnel, and it could not tell apart two places sharing an SSID.
+  // null means a local repository, where there is nothing to probe.
+  if (status && status.repoReachable === false) return "unreachable"
   var ts = status && status.lastBackupTs ? Number(status.lastBackupTs) : 0
   if (!ts) return status && status.vortaInstalled ? "never" : "missing"
   var ageHours = Math.max(0, (nowSec - ts) / 3600)
@@ -147,7 +147,7 @@ function deriveState(status, nowSec, staleAfterHours, failedAfterHours) {
 function stateLabel(state, statusText) {
   if (state === "running") return "Backing up"
   if (state === "failed") return "Last backup failed"
-  if (state === "away") return "Waiting for home Wi-Fi"
+  if (state === "unreachable") return "Backup server unreachable"
   if (state === "overdue") return "Backup overdue"
   if (state === "stale") return "Backup getting old"
   if (state === "never") return "No backups yet"
@@ -164,9 +164,7 @@ function resultLabel(code) {
 
 function nextLabel(status, nowSec) {
   if (!status) return "—"
-  var home = String(status.homeSsid || "")
-  var current = String(status.currentSsid || "")
-  if (home !== "" && current !== home) return "when back on " + home
+  if (status.repoReachable === false) return "when the repo answers again"
   if (status.scheduleMode !== "interval") return status.scheduleLabel || "manual"
   var interval = Number(status.intervalSec || 0)
   var last = Number(status.lastBackupTs || 0)

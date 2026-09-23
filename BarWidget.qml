@@ -88,7 +88,7 @@ BarWidget {
           text: "󰆼"
           color: {
             if (borg.needsAction) return root.bar ? root.bar.urgent : Color.urgent
-            if (borg.state === "stale" || borg.state === "away") return Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.55)
+            if (borg.state === "stale" || borg.state === "unreachable") return Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.55)
             return root.bar ? root.bar.foreground : Color.foreground
           }
           opacity: borg.backupRunning ? pulse.opacity : 1.0

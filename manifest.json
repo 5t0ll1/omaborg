@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "oma.borg",
   "name": "Borg",
-  "version": "1.1.11",
+  "version": "1.2.0",
   "author": "5t0ll1",
   "license": "MIT",
   "description": "Vorta/Borg backup status and one-click backup for the Omarchy bar.",
@@ -22,8 +22,7 @@
       "refreshIntervalSec": 30,
       "staleAfterHours": 24,
       "failedAfterHours": 48,
-      "profileName": "",
-      "homeSsid": ""
+      "profileName": ""
     },
     "schema": [
       {
@@ -57,12 +56,6 @@
         "key": "profileName",
         "type": "string",
         "label": "Vorta profile name (empty = first profile)",
-        "defaultValue": ""
-      },
-      {
-        "key": "homeSsid",
-        "type": "string",
-        "label": "Only backup on this Wi-Fi (empty = any)",
         "defaultValue": ""
       }
     ]

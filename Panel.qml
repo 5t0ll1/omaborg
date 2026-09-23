@@ -30,7 +30,7 @@ Panel {
   readonly property color stateColor: {
     if (borg.needsAction) return urgent
     if (borg.state === "running") return accent
-    if (borg.state === "stale" || borg.state === "away") return dim
+    if (borg.state === "stale" || borg.state === "unreachable") return dim
     return foreground
   }
   readonly property string glyph: "󰆼"
@@ -173,7 +173,7 @@ Panel {
           }
 
           Rectangle {
-            visible: borg.needsAction || borg.state === "away"
+            visible: borg.needsAction || borg.state === "unreachable"
             width: parent.width
             implicitHeight: attentionCol.implicitHeight + Style.space(16)
             radius: Style.cornerRadius
@@ -233,13 +233,11 @@ Panel {
             InfoPair { label: "Next"; value: borg.nextText }
             InfoPair { label: "Vorta"; value: borg.vortaRunning ? "running" : (borg.vortaInstalled ? "not running" : "not installed") }
             InfoPair {
-              visible: borg.homeSsid !== ""
-              label: "Network"
-              // No SSID means a cable, which is where the repository lives, so say
-              // that rather than claiming the home Wi-Fi is what carries this.
-              value: borg.currentSsid === "" ? "cable"
-                   : borg.onHomeWifi ? borg.homeSsid
-                   : (borg.currentSsid + " · home is " + borg.homeSsid)
+              visible: borg.repoReachable !== null
+              label: "Repository"
+              // Reachability, not which network we are on: a VPN tunnel counts
+              // just as much as sitting on the home LAN.
+              value: borg.repoAnswers ? "reachable" : "not answering"
             }
           }
 
@@ -256,11 +254,11 @@ Panel {
             Item {
               width: parent.width
               implicitHeight: backupRow.implicitHeight + Style.space(16)
-              opacity: (!borg.busy && borg.vortaInstalled && borg.onHomeWifi) ? 1.0 : 0.45
+              opacity: (!borg.busy && borg.vortaInstalled && borg.repoAnswers) ? 1.0 : 0.45
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                enabled: !borg.busy && borg.vortaInstalled && borg.onHomeWifi
+                enabled: !borg.busy && borg.vortaInstalled && borg.repoAnswers
                 onClicked: borg.startBackup()
               }
               Row {
