@@ -8,6 +8,9 @@ Item {
   id: root
 
   property var settings: ({})
+  // Only one Service instance (the bar's) may send notifications; the panel
+  // runs a second instance for its own refreshes.
+  property bool notify: false
 
   property bool ok: true
   property bool vortaInstalled: false
@@ -33,11 +36,20 @@ Item {
   property string actionStatus: ""
   property bool refreshing: false
   property double nowSec: Date.now() / 1000
+  property var usb: ({ configured: false })
+  property string _pendingProfile: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 10, 3600)
   readonly property int staleAfterHours: intSetting("staleAfterHours", 24, 1, 168)
   readonly property int failedAfterHours: intSetting("failedAfterHours", 48, 1, 336)
   readonly property string configuredProfile: String(setting("profileName", "") || "")
+  readonly property string usbProfileName: String(setting("usbProfileName", "") || "")
+  readonly property int usbIntervalDays: intSetting("usbIntervalDays", 30, 1, 365)
+  readonly property bool usbConfigured: usb && usb.configured === true
+  readonly property bool usbMounted: usbConfigured && usb.mounted === true
+  readonly property bool usbDue: Model.usbDue(usb, nowSec, usbIntervalDays)
+  readonly property string usbAgeLabel: usbConfigured && usb.lastBackupTs > 0 ? Model.ageLabel(nowSec - usb.lastBackupTs) : "never"
+  readonly property string usbNextText: Model.usbNextLabel(usb, nowSec, usbIntervalDays)
   readonly property string helperPath: pluginFile("status.py")
   readonly property bool busy: statusProcess.running || backupProcess.running
   readonly property string backupProfile: configuredProfile !== "" ? configuredProfile : profileName
@@ -102,7 +114,7 @@ Item {
     _statusOutput = ""
     _statusError = ""
     refreshing = true
-    statusProcess.command = ["python3", helperPath, configuredProfile]
+    statusProcess.command = ["python3", helperPath, configuredProfile, usbProfileName]
     statusProcess.running = true
   }
 
@@ -132,8 +144,49 @@ Item {
     lastFailureHint = String(parsed.lastFailureHint || "")
     archives = parsed.archives || []
     statusText = String(parsed.statusText || "")
+    usb = parsed.usb || ({ configured: false })
     lastError = ""
     nowSec = Date.now() / 1000
+    maybeNotifyUsb()
+  }
+
+  // At most two reminders per shell session: once when the copy is due, and
+  // once more when the disk shows up while it is still due. The second one
+  // carries a button that starts the backup.
+  property bool _usbToldDue: false
+  property bool _usbToldMounted: false
+
+  function maybeNotifyUsb() {
+    if (!usbDue) { _usbToldDue = false; _usbToldMounted = false; return }
+    if (!notify || backupRunning || usbNotifyProcess.running) return
+    var age = usb.lastBackupTs > 0 ? ("Last copy " + usbAgeLabel + ".") : "No copy yet."
+    if (usbMounted && !_usbToldMounted) {
+      _usbToldMounted = true
+      _usbToldDue = true
+      usbNotifyProcess.command = ["notify-send", "-a", "Borg", "-i", "drive-removable-media",
+        "-A", "backup=Back up now", "USB backup due", age + " The disk is connected."]
+      usbNotifyProcess.running = true
+    } else if (!usbMounted && !_usbToldDue) {
+      _usbToldDue = true
+      usbNotifyProcess.command = ["notify-send", "-a", "Borg", "-i", "drive-removable-media",
+        "USB backup due", age + " Plug in the backup disk, then start it from the Borg panel."]
+      usbNotifyProcess.running = true
+    }
+  }
+
+  function startUsbBackup() {
+    if (backupProcess.running) return
+    lastError = ""
+    if (!usbConfigured) { lastError = "No USB profile configured"; actionStatus = lastError; return }
+    if (!usbMounted) { lastError = "USB disk is not connected"; actionStatus = lastError; return }
+    if (!vortaRunning) {
+      actionStatus = "Starting Vorta…"
+      Quickshell.execDetached(["vorta", "--daemonize"])
+      _pendingProfile = usbProfileName
+      startAfterVorta.restart()
+      return
+    }
+    queueBackup(usbProfileName)
   }
 
   function elideStatus(text) {
@@ -152,14 +205,15 @@ Item {
     if (!vortaRunning) {
       actionStatus = "Starting Vorta…"
       Quickshell.execDetached(["vorta", "--daemonize"])
+      _pendingProfile = ""
       startAfterVorta.restart()
       return
     }
-    queueBackup()
+    queueBackup("")
   }
 
-  function queueBackup() {
-    var profile = backupProfile
+  function queueBackup(which) {
+    var profile = which || backupProfile
     if (profile === "") {
       lastError = "No Vorta profile found"
       actionStatus = lastError
@@ -213,7 +267,7 @@ Item {
     id: startAfterVorta
     interval: 1800
     repeat: false
-    onTriggered: root.queueBackup()
+    onTriggered: root.queueBackup(root._pendingProfile)
   }
 
   Timer {
@@ -236,6 +290,14 @@ Item {
       if (exitCode === 0) root.applyStatus(stdout)
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read backup status")
     }
+  }
+
+  Process {
+    id: usbNotifyProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: usbNotifyStdout; waitForEnd: true }
+    onExited: if (String(usbNotifyStdout.text || "").trim() === "backup") root.startUsbBackup()
   }
 
   Process {

@@ -176,3 +176,21 @@ function nextLabel(status, nowSec) {
   }
   return "in " + ageLabel(next - nowSec).replace(" ago", "")
 }
+
+// The USB copy is due once the last successful run is older than the interval,
+// or when there has never been one.
+function usbDue(usb, nowSec, intervalDays) {
+  if (!usb || !usb.configured) return false
+  var last = Number(usb.lastBackupTs || 0)
+  if (!last) return true
+  return nowSec - last >= intervalDays * 86400
+}
+
+function usbNextLabel(usb, nowSec, intervalDays) {
+  if (!usb || !usb.configured) return "—"
+  var last = Number(usb.lastBackupTs || 0)
+  if (!last) return "now"
+  var left = last + intervalDays * 86400 - nowSec
+  if (left <= 0) return "now (overdue " + ageLabel(-left).replace(" ago", "") + ")"
+  return "in " + ageLabel(left).replace(" ago", "")
+}
