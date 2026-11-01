@@ -55,6 +55,27 @@ When the host is unreachable, scheduled and manual backups are skipped with a
 message instead of failing halfway through. The bar stays quiet (not red)
 while `homeSsid` says you are away.
 
+## Occasional USB copy
+
+A second Vorta profile can back up to a local USB disk now and then, as an
+offline copy next to the regular remote one. Create the profile in Vorta with
+its schedule set to **Manual** and the repository on the disk, then set
+`usbProfileName` (and optionally `usbIntervalDays`, default 30) on the bar
+entry.
+
+- When the last successful USB copy is older than the interval, the bar icon
+  gets a small accent dot and a desktop notification says so, once per
+  session.
+- When the disk is plugged in while the copy is due, a second notification
+  offers **Back up now**.
+- The panel shows a **USB COPY** section with a **USB backup now** button
+  (key `u`); it stays greyed out until the repository on the disk is
+  reachable, i.e. the disk is mounted.
+- From a script: `omarchy shell oma.borg backupUsb`.
+
+The main status only counts runs of the main profile, so a USB copy never
+makes an overdue remote backup look fresh.
+
 ## Bar colors
 
 | Appearance | Meaning |
@@ -80,6 +101,7 @@ Bar:
 Panel:
 
 - `b`: backup now
+- `u`: USB backup now (when a USB profile is set)
 - Esc: close
 
 ## What this repo does not contain

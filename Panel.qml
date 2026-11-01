@@ -126,6 +126,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "b" || t === "B") borg.startBackup()
+        if (t === "u" || t === "U") borg.startUsbBackup()
       }
 
       Flickable {
@@ -291,6 +292,77 @@ Panel {
                   Text {
                     width: parent.width
                     text: borg.profileName !== "" ? ("vorta --create " + borg.profileName) : "Queue a Vorta backup"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                  }
+                }
+              }
+            }
+          }
+
+          PanelSeparator {
+            visible: borg.usbConfigured
+            foreground: root.foreground
+          }
+
+          Column {
+            visible: borg.usbConfigured
+            width: parent.width
+            spacing: Style.spacing.labelGap
+
+            PanelSectionHeader {
+              text: borg.usbDue ? "USB COPY — DUE" : "USB COPY"
+              foreground: borg.usbDue ? root.accent : root.foreground
+              fontFamily: root.fontFamily
+            }
+            InfoPair { label: "Last copy"; value: borg.usbAgeLabel }
+            InfoPair { label: "Result"; value: Model.resultLabel(borg.usb.lastReturncode) }
+            InfoPair { label: "Next"; value: borg.usbNextText + " (every " + borg.usbIntervalDays + "d)" }
+            InfoPair { label: "Disk"; value: borg.usbMounted ? "connected" : "not connected" }
+
+            Item {
+              visible: root.showActions
+              width: parent.width
+              implicitHeight: usbRow.implicitHeight + Style.space(16)
+              opacity: (!borg.busy && borg.usbMounted) ? 1.0 : 0.45
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                enabled: !borg.busy && borg.usbMounted
+                onClicked: borg.startUsbBackup()
+              }
+              Row {
+                id: usbRow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.space(10)
+                anchors.rightMargin: Style.space(10)
+                spacing: Style.space(8)
+                Text {
+                  text: "󰕓"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.icon
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+                Column {
+                  width: parent.width - x - parent.spacing
+                  spacing: Style.space(1)
+                  anchors.verticalCenter: parent.verticalCenter
+                  Text {
+                    width: parent.width
+                    text: "USB backup now"
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
+                  }
+                  Text {
+                    width: parent.width
+                    text: borg.usbMounted ? ("u · vorta --create " + borg.usbProfileName) : "Plug in the backup disk first"
                     color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption

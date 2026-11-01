@@ -51,6 +51,7 @@ BarWidget {
   Service {
     id: borg
     settings: root.settings
+    notify: true
   }
 
   IpcHandler {
@@ -62,6 +63,7 @@ BarWidget {
     function toggle(): void { root.toggle() }
     function refresh(): string { borg.refresh(); return "ok" }
     function backup(): string { borg.startBackup(); return "ok" }
+    function backupUsb(): string { borg.startUsbBackup(); return borg.actionStatus || "ok" }
     function status(): string { return borg.stateText }
   }
 
@@ -80,7 +82,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    tooltipText: borg.needsAction ? (borg.plan.title + " — click for what to do") : borg.stateText
+    tooltipText: (borg.needsAction ? (borg.plan.title + " — click for what to do") : borg.stateText)
+      + (borg.usbDue ? "\nUSB backup due" : "")
     iconComponent: Component {
       Item {
         anchors.fill: parent
@@ -95,6 +98,16 @@ BarWidget {
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.bar.iconFont
           anchors.centerIn: parent
+        }
+        // A quiet accent dot for a due USB copy; the red "!" badge wins.
+        Rectangle {
+          visible: borg.usbDue && !borg.needsAction
+          width: Math.max(5, parent.width * 0.28)
+          height: width
+          radius: width / 2
+          color: Color.accent
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
         }
         Rectangle {
           visible: borg.needsAction

@@ -219,7 +219,53 @@ def open_db() -> sqlite3.Connection | None:
         return None
 
 
-def load_status(profile_name: str) -> dict:
+def usb_status(con: sqlite3.Connection, name: str) -> dict:
+    """State of the occasional copy to a local USB disk.
+
+    `mounted` is true when the repository directory is there, i.e. the disk is
+    plugged in and mounted. Only the last *successful* run counts towards the
+    due date, so a failed attempt keeps reminding.
+    """
+    result = {"configured": False, "profileName": name, "mounted": False,
+              "lastBackupTs": 0, "lastBackupAt": "", "lastReturncode": None}
+    row = con.execute(
+        """
+        SELECT p.id, r.url FROM backupprofilemodel p
+        LEFT JOIN repomodel r ON r.id = p.repo_id
+        WHERE p.name = ?
+        """,
+        (name,),
+    ).fetchone()
+    if row is None:
+        return result
+    result["configured"] = True
+    url = row["url"] or ""
+    if url.startswith("file://"):
+        url = url[len("file://"):]
+    # A Borg repository always has a top-level `config` file.
+    result["mounted"] = url.startswith("/") and os.path.isfile(os.path.join(url, "config"))
+    last = con.execute(
+        "SELECT returncode FROM eventlogmodel WHERE subcommand = 'create' AND profile = ? ORDER BY id DESC LIMIT 1",
+        (str(row["id"]),),
+    ).fetchone()
+    if last is not None:
+        result["lastReturncode"] = int(last["returncode"])
+    ok = con.execute(
+        """
+        SELECT end_time FROM eventlogmodel
+        WHERE subcommand = 'create' AND profile = ? AND returncode IN (0, 1)
+        ORDER BY id DESC LIMIT 1
+        """,
+        (str(row["id"]),),
+    ).fetchone()
+    ended = parse_dt(ok["end_time"]) if ok is not None else None
+    if ended is not None:
+        result["lastBackupTs"] = int(ended.timestamp())
+        result["lastBackupAt"] = ended.strftime("%Y-%m-%d %H:%M")
+    return result
+
+
+def load_status(profile_name: str, usb_profile: str = "") -> dict:
     now = datetime.now()
     vorta_installed = which("vorta")
     borg_installed = which("borg")
@@ -263,7 +309,7 @@ def load_status(profile_name: str) -> dict:
         if profile_name:
             profile = con.execute(
                 """
-                SELECT p.name, p.schedule_mode, p.schedule_interval_count, p.schedule_interval_unit,
+                SELECT p.id, p.repo_id, p.name, p.schedule_mode, p.schedule_interval_count, p.schedule_interval_unit,
                        p.schedule_make_up_missed, r.url, r.name AS repo_name
                 FROM backupprofilemodel p
                 LEFT JOIN repomodel r ON r.id = p.repo_id
@@ -274,7 +320,7 @@ def load_status(profile_name: str) -> dict:
         if profile is None:
             profile = con.execute(
                 """
-                SELECT p.name, p.schedule_mode, p.schedule_interval_count, p.schedule_interval_unit,
+                SELECT p.id, p.repo_id, p.name, p.schedule_mode, p.schedule_interval_count, p.schedule_interval_unit,
                        p.schedule_make_up_missed, r.url, r.name AS repo_name
                 FROM backupprofilemodel p
                 LEFT JOIN repomodel r ON r.id = p.repo_id
@@ -299,14 +345,19 @@ def load_status(profile_name: str) -> dict:
                 payload["profileName"],
             )
 
+        # Filter by profile and repository: with a second profile (the USB
+        # copy) an unfiltered query would report that run as the main backup.
+        profile_id = str(profile["id"]) if profile is not None else ""
+        repo_id = profile["repo_id"] if profile is not None else None
         event = con.execute(
             """
             SELECT start_time, end_time, returncode
             FROM eventlogmodel
-            WHERE subcommand = 'create'
+            WHERE subcommand = 'create' AND profile = ?
             ORDER BY id DESC
             LIMIT 1
-            """
+            """,
+            (profile_id,),
         ).fetchone()
         if event is not None:
             ended = parse_dt(event["end_time"]) or parse_dt(event["start_time"])
@@ -326,9 +377,11 @@ def load_status(profile_name: str) -> dict:
             """
             SELECT name, time
             FROM archivemodel
+            WHERE repo_id = ?
             ORDER BY time DESC
             LIMIT 8
-            """
+            """,
+            (repo_id,),
         ):
             when = parse_dt(row["time"])
             age = (now - when).total_seconds() if when else None
@@ -341,6 +394,8 @@ def load_status(profile_name: str) -> dict:
                 }
             )
         payload["archives"] = archives
+        if usb_profile:
+            payload["usb"] = usb_status(con, usb_profile)
     except sqlite3.Error as exc:
         payload["ok"] = False
         payload["statusText"] = f"Could not read Vorta database ({exc})"
@@ -363,10 +418,9 @@ def load_status(profile_name: str) -> dict:
 
 
 def main() -> None:
-    profile = ""
-    if len(sys.argv) > 1:
-        profile = sys.argv[1].strip()
-    print(json.dumps(load_status(profile), ensure_ascii=False))
+    profile = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    usb_profile = sys.argv[2].strip() if len(sys.argv) > 2 else ""
+    print(json.dumps(load_status(profile, usb_profile), ensure_ascii=False))
 
 
 if __name__ == "__main__":
